@@ -180,7 +180,7 @@ class Table:
 
 
 def process(req_path: Path, req_id: str, pattern: re.Pattern, repl: str,
-            timeout: float, table: Table) -> None:
+            timeout: float, out_dir: Path, table: Table) -> None:
     req_bytes = read_stable(req_path)
 
     # Original response from the response file pwnproxy saved alongside it.
@@ -197,6 +197,12 @@ def process(req_path: Path, req_id: str, pattern: re.Pattern, repl: str,
         mod_status, mod_len = "ERR", err
     else:
         mod_status, mod_len = parse_response(resp)
+
+    # Save the modified request and its response alongside in the output dir.
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"{req_id}.modified.req").write_bytes(modified)
+    if resp is not None:
+        (out_dir / f"{req_id}.modified.req.resp").write_bytes(resp)
 
     table.row(req_id, orig_status, orig_len, mod_status, mod_len)
 
@@ -234,6 +240,7 @@ def main() -> int:
         return 2
 
     history = Path(args.history_dir)
+    out_dir = history.parent / "autorize"
     table = Table()
     table.header()
 
@@ -253,7 +260,8 @@ def main() -> int:
                         continue
                     seen.add(p.name)
                     req_id = REQ_RE.match(p.name).group(1)
-                    process(p, req_id, pattern, args.replace, timeout, table)
+                    process(p, req_id, pattern, args.replace, timeout,
+                            out_dir, table)
             time.sleep(interval)
     except KeyboardInterrupt:
         return 0
