@@ -194,15 +194,18 @@ class Table:
 
 
 def process(req_path: Path, req_id: str, filters: list[re.Pattern],
+            invert_filters: list[re.Pattern],
             rules: list[tuple[re.Pattern, str]], timeout: float,
             out_dir: Path, table: Table) -> None:
     req_bytes = read_stable(req_path)
 
     # Filter: when filter regexes are set, only handle requests matching at
-    # least one of them.
-    if filters:
+    # least one of them; always ignore requests matching an inverse filter.
+    if filters or invert_filters:
         text = req_bytes.decode("utf-8", "surrogateescape")
-        if not any(f.search(text) for f in filters):
+        if filters and not any(f.search(text) for f in filters):
+            return
+        if any(f.search(text) for f in invert_filters):
             return
 
     # Apply each rule in order. If nothing matched, the request would be
@@ -264,6 +267,11 @@ def main() -> int:
                         help="regex a request must match to be handled; may be "
                              "given multiple times (a request is handled if it "
                              "matches any filter). Default: handle all requests")
+    parser.add_argument("-v", "--invert-filter", action="append", default=None,
+                        metavar="FILTER", dest="invert_filter",
+                        help="inverse filter: a request matching this regex is "
+                             "ignored. May be given multiple times (a request "
+                             "is ignored if it matches any inverse filter)")
     parser.add_argument("-i", "--ignore-case", action="store_true",
                         help="make the filter and match regexes case insensitive")
     args = parser.parse_args()
@@ -284,6 +292,14 @@ def main() -> int:
             filters.append(re.compile(f, flags))
         except re.error as exc:
             sys.stderr.write(f"invalid filter regex {f!r}: {exc}\n")
+            return 2
+
+    invert_filters: list[re.Pattern] = []
+    for f in (args.invert_filter or []):
+        try:
+            invert_filters.append(re.compile(f, flags))
+        except re.error as exc:
+            sys.stderr.write(f"invalid inverse filter regex {f!r}: {exc}\n")
             return 2
 
     rules: list[tuple[re.Pattern, str]] = []
@@ -315,7 +331,7 @@ def main() -> int:
                         continue
                     seen.add(p.name)
                     req_id = REQ_RE.match(p.name).group(1)
-                    process(p, req_id, filters, rules,
+                    process(p, req_id, filters, invert_filters, rules,
                             timeout, out_dir, table)
             time.sleep(interval)
     except KeyboardInterrupt:

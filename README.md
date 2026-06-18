@@ -73,7 +73,7 @@ $ autorize -f '/admin' -f '/api' \
 ### Options
 
 ```
-autorize [-d HISTORY_DIR] [-f FILTER]... [-i] match replace [match replace ...]
+autorize [-d HISTORY_DIR] [-f FILTER]... [-v FILTER]... [-i] match replace [match replace ...]
 
   match replace      one or more match/replace pairs (an even number of
                      positional arguments). Each match is a regex and each
@@ -84,6 +84,9 @@ autorize [-d HISTORY_DIR] [-f FILTER]... [-i] match replace [match replace ...]
                      match none of the filters are ignored completely (no
                      replacement is performed with these regexes). May be given
                      multiple times. Default: handle all requests
+  -v, --invert-filter  inverse filter: a request matching this regex is ignored
+                     completely. May be given multiple times (a request is
+                     ignored if it matches any inverse filter)
   -i, --ignore-case  make the filter and match regexes case insensitive
 ```
 
