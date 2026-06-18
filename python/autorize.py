@@ -57,6 +57,14 @@ def parse_response(data: bytes) -> tuple[str, int]:
     return status, len(body)
 
 
+def parse_request_path(data: bytes) -> str:
+    """Return the request-target (path) from a raw HTTP request line."""
+    head, _ = split_head_body(data)
+    first_line = head.split(b"\n", 1)[0].strip()
+    parts = first_line.split()
+    return parts[1].decode("ascii", "replace") if len(parts) >= 2 else "?"
+
+
 def apply_rules(data: bytes,
                 rules: list[tuple[re.Pattern, str]]) -> tuple[bytes, int]:
     """Apply each (regex, replacement) rule to the request bytes in order.
@@ -180,6 +188,7 @@ class Table:
         ("Orig Len", 10),
         ("Mod Status", 12),
         ("Mod Len", 10),
+        ("Path", 20),
     ]
 
     def header(self) -> None:
@@ -250,7 +259,8 @@ def process(req_path: Path, req_id: str, filters: list[re.Pattern],
     if resp is not None:
         (out_dir / f"{req_id}.modified.req.resp").write_bytes(resp)
 
-    table.row(req_id, orig_status, orig_len, mod_status, mod_len)
+    path = parse_request_path(req_bytes)
+    table.row(req_id, orig_status, orig_len, mod_status, mod_len, path)
 
 
 def highlight_matches(text: str, patterns: list[re.Pattern],
