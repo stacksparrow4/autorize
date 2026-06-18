@@ -129,6 +129,7 @@ COLORS = {
     "green": "\033[32m",
     "cyan": "\033[36m",
     "yellow": "\033[33m",
+    "orange": "\033[38;5;208m",
     "red": "\033[31m",
     "magenta": "\033[35m",
 }
@@ -156,24 +157,15 @@ def colorize(text: str, color: str) -> str:
         return text
     return f"{COLORS[color]}{text}{RESET}"
 
-REVERSE = "\033[7m"
-
-
-def highlight(text: str) -> str:
-    """Visually mark a replaced span of text."""
-    if not USE_COLOR:
-        return f"[{text}]"
-    return f"{REVERSE}{text}{RESET}"
-
 
 def apply_rules_highlight(data: bytes,
                           rules: list[tuple[re.Pattern, str]]) -> tuple[str, int]:
-    """Like apply_rules, but return text with each replacement highlighted."""
+    """Like apply_rules, but colour each replacement (orange) in the result."""
     text = data.decode("utf-8", "surrogateescape")
     total = 0
     for pattern, repl in rules:
         def _sub(m, repl=repl):
-            return highlight(m.expand(repl))
+            return colorize(m.expand(repl), "orange")
         text, count = pattern.subn(_sub, text)
         total += count
     return text, total
@@ -260,8 +252,9 @@ def process(req_path: Path, req_id: str, filters: list[re.Pattern],
     table.row(req_id, orig_status, orig_len, mod_status, mod_len)
 
 
-def highlight_matches(text: str, patterns: list[re.Pattern]) -> str:
-    """Return text with every match of any pattern highlighted."""
+def highlight_matches(text: str, patterns: list[re.Pattern],
+                      color: str) -> str:
+    """Return text with every match of any pattern coloured."""
     spans = []
     for p in patterns:
         for m in p.finditer(text):
@@ -280,7 +273,7 @@ def highlight_matches(text: str, patterns: list[re.Pattern]) -> str:
     last = 0
     for start, end in merged:
         out.append(text[last:start])
-        out.append(highlight(text[start:end]))
+        out.append(colorize(text[start:end], color))
         last = end
     out.append(text[last:])
     return "".join(out)
@@ -324,14 +317,15 @@ def test_request(path: Path, filters: list[re.Pattern],
         print(colorize("IGNORED", "red") +
               f": request matches inverse filter(s) {names}")
         _show("inverse filter matches highlighted:",
-              highlight_matches(text, matched_inv))
+              highlight_matches(text, matched_inv, "red"))
         return 0
 
     # Passes the filters: show the filter matches, then the changes.
     print(colorize("PASSES", "green") + ": request would be handled")
 
     if filters:
-        _show("filter matches highlighted:", highlight_matches(text, filters))
+        _show("filter matches highlighted:",
+              highlight_matches(text, filters, "green"))
 
     highlighted, count = apply_rules_highlight(data, rules)
     if count == 0:
