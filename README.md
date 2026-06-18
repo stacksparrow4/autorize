@@ -51,7 +51,7 @@ Replace any session cookie with an attacker-controlled value to test for
 broken access control:
 
 ```console
-$ autorize 'session=[a-f0-9]+' 'session=attacker-token'
+$ autorize -f '/admin' 'session=[a-f0-9]+' 'session=attacker-token'
 ID         | Orig Status  | Orig Len   | Mod Status   | Mod Len
 -----------------------------------------------------------------
 000001     | 200          | 5123       | 403          | 28
@@ -63,11 +63,14 @@ The replacement string supports backreferences (`\1`, `\2`, ...).
 ### Options
 
 ```
-autorize [-d HISTORY_DIR] match replace
+autorize [-d HISTORY_DIR] [-f FILTER] match replace
 
   match              regex to match in each request
   replace            replacement string (supports \1 backrefs)
   -d, --history-dir  directory pwnproxy writes .req files to (default: history)
+  -f, --filter       regex a request must match to be handled; requests that
+                     do not match are ignored completely (no replacement is
+                     performed with this regex). Default: handle all requests
 ```
 
 ### Environment variables

@@ -188,9 +188,15 @@ class Table:
         sys.stdout.flush()
 
 
-def process(req_path: Path, req_id: str, pattern: re.Pattern, repl: str,
-            timeout: float, out_dir: Path, table: Table) -> None:
+def process(req_path: Path, req_id: str, filter_pattern: re.Pattern | None,
+            pattern: re.Pattern, repl: str, timeout: float, out_dir: Path,
+            table: Table) -> None:
     req_bytes = read_stable(req_path)
+
+    # Filter: when a filter regex is set, only handle matching requests.
+    if filter_pattern is not None and \
+            not filter_pattern.search(req_bytes.decode("utf-8", "surrogateescape")):
+        return
 
     # Apply the rule. If nothing matched, the request would be unchanged, so
     # there is no point re-sending it: warn instead.
@@ -243,10 +249,22 @@ def main() -> int:
     parser.add_argument("replace", help="replacement string (supports \\1 backrefs)")
     parser.add_argument("-d", "--history-dir", default="history",
                         help="directory pwnproxy writes .req files to (default: history)")
+    parser.add_argument("-f", "--filter", default=None,
+                        help="regex a request must match to be handled; "
+                             "requests that do not match are ignored "
+                             "(default: handle all requests)")
     args = parser.parse_args()
 
     timeout = _env_float("AUTORIZE_RESP_TIMEOUT", 15.0)
     interval = _env_float("AUTORIZE_SCAN_INTERVAL", 0.5)
+
+    filter_pattern = None
+    if args.filter is not None:
+        try:
+            filter_pattern = re.compile(args.filter)
+        except re.error as exc:
+            sys.stderr.write(f"invalid filter regex: {exc}\n")
+            return 2
 
     try:
         pattern = re.compile(args.match)
@@ -275,8 +293,8 @@ def main() -> int:
                         continue
                     seen.add(p.name)
                     req_id = REQ_RE.match(p.name).group(1)
-                    process(p, req_id, pattern, args.replace, timeout,
-                            out_dir, table)
+                    process(p, req_id, filter_pattern, pattern, args.replace,
+                            timeout, out_dir, table)
             time.sleep(interval)
     except KeyboardInterrupt:
         return 0
