@@ -20,6 +20,7 @@ The ``.req`` file format is exactly what ``send-request`` reads on stdin, so the
 """
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -160,6 +161,18 @@ def process(req_path: Path, req_id: str, pattern: re.Pattern, repl: str,
     table.row(req_id, orig_status, orig_len, mod_status, mod_len)
 
 
+
+def _env_float(name: str, default: float) -> float:
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except ValueError:
+        sys.stderr.write(f"invalid {name}={val!r}, using default {default}\n")
+        return default
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Replay pwnproxy requests with a regex match-and-replace, "
@@ -169,11 +182,10 @@ def main() -> int:
     parser.add_argument("replace", help="replacement string (supports \\1 backrefs)")
     parser.add_argument("-d", "--history-dir", default="history",
                         help="directory pwnproxy writes .req files to (default: history)")
-    parser.add_argument("-t", "--timeout", type=float, default=15.0,
-                        help="seconds to wait for the original .resp file (default: 15)")
-    parser.add_argument("-i", "--interval", type=float, default=0.5,
-                        help="polling interval in seconds (default: 0.5)")
     args = parser.parse_args()
+
+    timeout = _env_float("AUTORIZE_RESP_TIMEOUT", 15.0)
+    interval = _env_float("AUTORIZE_SCAN_INTERVAL", 0.5)
 
     try:
         pattern = re.compile(args.match)
@@ -201,8 +213,8 @@ def main() -> int:
                         continue
                     seen.add(p.name)
                     req_id = REQ_RE.match(p.name).group(1)
-                    process(p, req_id, pattern, args.replace, args.timeout, table)
-            time.sleep(args.interval)
+                    process(p, req_id, pattern, args.replace, timeout, table)
+            time.sleep(interval)
     except KeyboardInterrupt:
         return 0
 
