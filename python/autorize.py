@@ -260,6 +260,41 @@ def process(req_path: Path, req_id: str, filters: list[re.Pattern],
     table.row(req_id, orig_status, orig_len, mod_status, mod_len)
 
 
+def highlight_matches(text: str, patterns: list[re.Pattern]) -> str:
+    """Return text with every match of any pattern highlighted."""
+    spans = []
+    for p in patterns:
+        for m in p.finditer(text):
+            if m.start() != m.end():
+                spans.append((m.start(), m.end()))
+    if not spans:
+        return text
+    spans.sort()
+    merged = [spans[0]]
+    for start, end in spans[1:]:
+        if start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    out = []
+    last = 0
+    for start, end in merged:
+        out.append(text[last:start])
+        out.append(highlight(text[start:end]))
+        last = end
+    out.append(text[last:])
+    return "".join(out)
+
+
+def _show(label: str, content: str) -> None:
+    print(label)
+    print("-" * 60)
+    sys.stdout.write(content)
+    if not content.endswith("\n"):
+        sys.stdout.write("\n")
+    print("-" * 60)
+
+
 def test_request(path: Path, filters: list[re.Pattern],
                  invert_filters: list[re.Pattern],
                  rules: list[tuple[re.Pattern, str]]) -> int:
@@ -275,18 +310,28 @@ def test_request(path: Path, filters: list[re.Pattern],
 
     text = data.decode("utf-8", "surrogateescape")
 
-    # Filter checks (same logic as process()).
+    # Doesn't match any normal filter: ignored, shown plain.
     if filters and not any(f.search(text) for f in filters):
         print(colorize("IGNORED", "red") +
               ": request matches none of the -f filters")
+        _show("request (unchanged):", text)
         return 0
-    for f in invert_filters:
-        if f.search(text):
-            print(colorize("IGNORED", "red") +
-                  f": request matches inverse filter {f.pattern!r}")
-            return 0
 
+    # Matches an inverse filter: ignored, with the inverse match highlighted.
+    matched_inv = [f for f in invert_filters if f.search(text)]
+    if matched_inv:
+        names = ", ".join(repr(f.pattern) for f in matched_inv)
+        print(colorize("IGNORED", "red") +
+              f": request matches inverse filter(s) {names}")
+        _show("inverse filter matches highlighted:",
+              highlight_matches(text, matched_inv))
+        return 0
+
+    # Passes the filters: show the filter matches, then the changes.
     print(colorize("PASSES", "green") + ": request would be handled")
+
+    if filters:
+        _show("filter matches highlighted:", highlight_matches(text, filters))
 
     highlighted, count = apply_rules_highlight(data, rules)
     if count == 0:
@@ -294,13 +339,7 @@ def test_request(path: Path, filters: list[re.Pattern],
               ": request would be unchanged (not resent)")
         return 0
 
-    print(f"{count} substitution(s); modified request "
-          "(changes highlighted):")
-    print("-" * 60)
-    sys.stdout.write(highlighted)
-    if not highlighted.endswith("\n"):
-        sys.stdout.write("\n")
-    print("-" * 60)
+    _show(f"{count} substitution(s); changes highlighted:", highlighted)
     return 0
 
 

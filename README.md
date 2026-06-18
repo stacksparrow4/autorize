@@ -87,10 +87,14 @@ autorize [-d HISTORY_DIR] [-f FILTER]... [-v FILTER]... [-t REQ_FILE] [-i] match
   -v, --invert-filter  inverse filter: a request matching this regex is ignored
                      completely. May be given multiple times (a request is
                      ignored if it matches any inverse filter)
-  -t, --test         test mode: read REQ_FILE, report whether it passes the
-                     filters and print the would-be modified request with
-                     changes highlighted. Sends no requests and writes no
-                     files
+  -t, --test         test mode: read REQ_FILE and report how it would be
+                     handled, without sending requests or writing files:
+                       - passes the filters: prints the request with the
+                         filter matches highlighted, then again with the
+                         rule changes highlighted
+                       - matches an inverse filter: prints the request with
+                         the inverse-filter match highlighted
+                       - matches no normal filter: prints the request plain
   -i, --ignore-case  make the filter and match regexes case insensitive
 ```
 
