@@ -57,14 +57,19 @@ def parse_response(data: bytes) -> tuple[str, int]:
     return status, len(body)
 
 
-def apply_rule(data: bytes, pattern: re.Pattern, repl: str) -> tuple[bytes, int]:
-    """Apply the regex match-and-replace to the request bytes.
+def apply_rules(data: bytes,
+                rules: list[tuple[re.Pattern, str]]) -> tuple[bytes, int]:
+    """Apply each (regex, replacement) rule to the request bytes in order.
 
-    Returns the (possibly unchanged) bytes and the number of substitutions made.
+    Returns the (possibly unchanged) bytes and the total number of
+    substitutions made across all rules.
     """
     text = data.decode("utf-8", "surrogateescape")
-    text, count = pattern.subn(repl, text)
-    return text.encode("utf-8", "surrogateescape"), count
+    total = 0
+    for pattern, repl in rules:
+        text, count = pattern.subn(repl, text)
+        total += count
+    return text.encode("utf-8", "surrogateescape"), total
 
 
 def send_request(req_bytes: bytes) -> tuple[bytes | None, str | None]:
@@ -188,19 +193,21 @@ class Table:
         sys.stdout.flush()
 
 
-def process(req_path: Path, req_id: str, filter_pattern: re.Pattern | None,
-            pattern: re.Pattern, repl: str, timeout: float, out_dir: Path,
-            table: Table) -> None:
+def process(req_path: Path, req_id: str, filters: list[re.Pattern],
+            rules: list[tuple[re.Pattern, str]], timeout: float,
+            out_dir: Path, table: Table) -> None:
     req_bytes = read_stable(req_path)
 
-    # Filter: when a filter regex is set, only handle matching requests.
-    if filter_pattern is not None and \
-            not filter_pattern.search(req_bytes.decode("utf-8", "surrogateescape")):
-        return
+    # Filter: when filter regexes are set, only handle requests matching at
+    # least one of them.
+    if filters:
+        text = req_bytes.decode("utf-8", "surrogateescape")
+        if not any(f.search(text) for f in filters):
+            return
 
-    # Apply the rule. If nothing matched, the request would be unchanged, so
-    # there is no point re-sending it: warn instead.
-    modified, count = apply_rule(req_bytes, pattern, repl)
+    # Apply each rule in order. If nothing matched, the request would be
+    # unchanged, so there is no point re-sending it: warn instead.
+    modified, count = apply_rules(req_bytes, rules)
     if count == 0:
         table.warning(req_id, "no-match: request unchanged, not resent")
         return
@@ -245,14 +252,18 @@ def main() -> int:
         description="Replay pwnproxy requests with a regex match-and-replace, "
                     "comparing original vs. modified responses.",
     )
-    parser.add_argument("match", help="regex to match in each request")
-    parser.add_argument("replace", help="replacement string (supports \\1 backrefs)")
+    parser.add_argument("rules", nargs="+", metavar="match replace",
+                        help="one or more match/replace pairs: each match is a "
+                             "regex and each replace is its replacement string "
+                             "(supports \\1 backrefs). Provide an even number "
+                             "of arguments")
     parser.add_argument("-d", "--history-dir", default="history",
                         help="directory pwnproxy writes .req files to (default: history)")
-    parser.add_argument("-f", "--filter", default=None,
-                        help="regex a request must match to be handled; "
-                             "requests that do not match are ignored "
-                             "(default: handle all requests)")
+    parser.add_argument("-f", "--filter", action="append", default=None,
+                        metavar="FILTER",
+                        help="regex a request must match to be handled; may be "
+                             "given multiple times (a request is handled if it "
+                             "matches any filter). Default: handle all requests")
     parser.add_argument("-i", "--ignore-case", action="store_true",
                         help="make the filter and match regexes case insensitive")
     args = parser.parse_args()
@@ -262,19 +273,26 @@ def main() -> int:
 
     flags = re.IGNORECASE if args.ignore_case else 0
 
-    filter_pattern = None
-    if args.filter is not None:
+    if len(args.rules) % 2 != 0:
+        sys.stderr.write("match/replace arguments must come in pairs "
+                         f"(got {len(args.rules)} values)\n")
+        return 2
+
+    filters: list[re.Pattern] = []
+    for f in (args.filter or []):
         try:
-            filter_pattern = re.compile(args.filter, flags)
+            filters.append(re.compile(f, flags))
         except re.error as exc:
-            sys.stderr.write(f"invalid filter regex: {exc}\n")
+            sys.stderr.write(f"invalid filter regex {f!r}: {exc}\n")
             return 2
 
-    try:
-        pattern = re.compile(args.match, flags)
-    except re.error as exc:
-        sys.stderr.write(f"invalid match regex: {exc}\n")
-        return 2
+    rules: list[tuple[re.Pattern, str]] = []
+    for match, repl in zip(args.rules[0::2], args.rules[1::2]):
+        try:
+            rules.append((re.compile(match, flags), repl))
+        except re.error as exc:
+            sys.stderr.write(f"invalid match regex {match!r}: {exc}\n")
+            return 2
 
     history = Path(args.history_dir)
     out_dir = history.parent / "autorize"
@@ -297,7 +315,7 @@ def main() -> int:
                         continue
                     seen.add(p.name)
                     req_id = REQ_RE.match(p.name).group(1)
-                    process(p, req_id, filter_pattern, pattern, args.replace,
+                    process(p, req_id, filters, rules,
                             timeout, out_dir, table)
             time.sleep(interval)
     except KeyboardInterrupt:

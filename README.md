@@ -32,14 +32,14 @@ reads on stdin. autorize therefore:
 ## Usage
 
 ```console
-$ nix run github:stacksparrow4/autorize -- '<match-regex>' '<replacement>'
+$ nix run github:stacksparrow4/autorize -- '<match-regex>' '<replacement>' [<match-regex> <replacement> ...]
 ```
 
 or from a checkout:
 
 ```console
 $ nix build
-$ ./result/bin/autorize '<match-regex>' '<replacement>'
+$ ./result/bin/autorize '<match-regex>' '<replacement>' [<match-regex> <replacement> ...]
 ```
 
 Run it in a separate terminal from the same working directory in which
@@ -60,17 +60,30 @@ ID         | Orig Status  | Orig Len   | Mod Status   | Mod Len
 
 The replacement string supports backreferences (`\1`, `\2`, ...).
 
+You can pass multiple match/replace pairs (an even number of positional
+arguments); each pair is applied in order to the request. You can also pass
+`-f` multiple times — a request is handled if it matches any of the filters:
+
+```console
+$ autorize -f '/admin' -f '/api' \
+    'session=[a-f0-9]+' 'session=attacker-token' \
+    'X-Role: user'      'X-Role: admin'
+```
+
 ### Options
 
 ```
-autorize [-d HISTORY_DIR] [-f FILTER] [-i] match replace
+autorize [-d HISTORY_DIR] [-f FILTER]... [-i] match replace [match replace ...]
 
-  match              regex to match in each request
-  replace            replacement string (supports \1 backrefs)
+  match replace      one or more match/replace pairs (an even number of
+                     positional arguments). Each match is a regex and each
+                     replace its replacement string (supports \1 backrefs).
+                     Pairs are applied in order.
   -d, --history-dir  directory pwnproxy writes .req files to (default: history)
   -f, --filter       regex a request must match to be handled; requests that
-                     do not match are ignored completely (no replacement is
-                     performed with this regex). Default: handle all requests
+                     match none of the filters are ignored completely (no
+                     replacement is performed with these regexes). May be given
+                     multiple times. Default: handle all requests
   -i, --ignore-case  make the filter and match regexes case insensitive
 ```
 
