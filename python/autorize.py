@@ -58,10 +58,29 @@ def parse_response(data: bytes) -> tuple[str, int]:
 
 
 def parse_request_path(data: bytes) -> str:
-    """Return the request-target (path) from a raw HTTP request line."""
-    head, _ = split_head_body(data)
-    first_line = head.split(b"\n", 1)[0].strip()
-    parts = first_line.split()
+    """Return the request-target (path) from a request.
+
+    Plain requests start with the HTTP request line. send-request documents are
+    prefixed with a ``---`` metadata block: in that case the request line is the
+    line immediately following the block's closing ``---``.
+    """
+    lines = data.split(b"\n")
+
+    request_line = b""
+    if lines and lines[0].strip() == b"---":
+        # Skip the metadata block: find its closing "---", then take the
+        # next non-empty line as the request line.
+        for i in range(1, len(lines)):
+            if lines[i].strip() == b"---":
+                for j in range(i + 1, len(lines)):
+                    if lines[j].strip():
+                        request_line = lines[j].strip()
+                        break
+                break
+    elif lines:
+        request_line = lines[0].strip()
+
+    parts = request_line.split()
     return parts[1].decode("ascii", "replace") if len(parts) >= 2 else "?"
 
 
