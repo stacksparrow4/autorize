@@ -253,21 +253,25 @@ def main() -> int:
                         help="regex a request must match to be handled; "
                              "requests that do not match are ignored "
                              "(default: handle all requests)")
+    parser.add_argument("-i", "--ignore-case", action="store_true",
+                        help="make the filter and match regexes case insensitive")
     args = parser.parse_args()
 
     timeout = _env_float("AUTORIZE_RESP_TIMEOUT", 15.0)
     interval = _env_float("AUTORIZE_SCAN_INTERVAL", 0.5)
 
+    flags = re.IGNORECASE if args.ignore_case else 0
+
     filter_pattern = None
     if args.filter is not None:
         try:
-            filter_pattern = re.compile(args.filter)
+            filter_pattern = re.compile(args.filter, flags)
         except re.error as exc:
             sys.stderr.write(f"invalid filter regex: {exc}\n")
             return 2
 
     try:
-        pattern = re.compile(args.match)
+        pattern = re.compile(args.match, flags)
     except re.error as exc:
         sys.stderr.write(f"invalid match regex: {exc}\n")
         return 2

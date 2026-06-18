@@ -63,7 +63,7 @@ The replacement string supports backreferences (`\1`, `\2`, ...).
 ### Options
 
 ```
-autorize [-d HISTORY_DIR] [-f FILTER] match replace
+autorize [-d HISTORY_DIR] [-f FILTER] [-i] match replace
 
   match              regex to match in each request
   replace            replacement string (supports \1 backrefs)
@@ -71,6 +71,7 @@ autorize [-d HISTORY_DIR] [-f FILTER] match replace
   -f, --filter       regex a request must match to be handled; requests that
                      do not match are ignored completely (no replacement is
                      performed with this regex). Default: handle all requests
+  -i, --ignore-case  make the filter and match regexes case insensitive
 ```
 
 ### Environment variables
