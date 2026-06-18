@@ -58,7 +58,7 @@ def parse_response(data: bytes) -> tuple[str, int]:
 
 
 def parse_request_path(data: bytes) -> str:
-    """Return the request-target (path) from a request.
+    """Return ``"METHOD PATH"`` from a request.
 
     Plain requests start with the HTTP request line. send-request documents are
     prefixed with a ``---`` metadata block: in that case the request line is the
@@ -81,7 +81,11 @@ def parse_request_path(data: bytes) -> str:
         request_line = lines[0].strip()
 
     parts = request_line.split()
-    return parts[1].decode("ascii", "replace") if len(parts) >= 2 else "?"
+    if len(parts) >= 2:
+        method = parts[0].decode("ascii", "replace")
+        path = parts[1].decode("ascii", "replace")
+        return f"{method} {path}"
+    return "?"
 
 
 def apply_rules(data: bytes,
@@ -207,7 +211,7 @@ class Table:
         ("Orig Len", 10),
         ("Mod Status", 12),
         ("Mod Len", 10),
-        ("Path", 20),
+        ("Info", 20),
     ]
 
     def header(self) -> None:
