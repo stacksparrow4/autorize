@@ -254,6 +254,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Replay pwnproxy requests with a regex match-and-replace, "
                     "comparing original vs. modified responses.",
+        epilog="-i makes every filter and match regex case insensitive.\n"
+               "To affect only a single regex, use an inline flag in that\n"
+               "pattern instead:\n"
+               "  (?i)...     make the whole pattern case insensitive\n"
+               "  (?i:...)    make just the enclosed part case insensitive",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("rules", nargs="+", metavar="match replace",
                         help="one or more match/replace pairs: each match is a "
