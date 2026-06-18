@@ -63,14 +63,13 @@ The replacement string supports backreferences (`\1`, `\2`, ...).
 ### Options
 
 ```
-autorize [-d HISTORY_DIR] [-t TIMEOUT] [-i INTERVAL] [-a] match replace
+autorize [-d HISTORY_DIR] [-t TIMEOUT] [-i INTERVAL] match replace
 
   match              regex to match in each request
   replace            replacement string (supports \1 backrefs)
   -d, --history-dir  directory pwnproxy writes .req files to (default: history)
   -t, --timeout      seconds to wait for the original .resp file (default: 15)
   -i, --interval     polling interval in seconds (default: 0.5)
-  -a, --all          also process .req files already present at startup
 ```
 
 ## Table columns

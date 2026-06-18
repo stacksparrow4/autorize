@@ -173,8 +173,6 @@ def main() -> int:
                         help="seconds to wait for the original .resp file (default: 15)")
     parser.add_argument("-i", "--interval", type=float, default=0.5,
                         help="polling interval in seconds (default: 0.5)")
-    parser.add_argument("-a", "--all", action="store_true",
-                        help="also process .req files already present at startup")
     args = parser.parse_args()
 
     try:
@@ -188,7 +186,7 @@ def main() -> int:
     table.header()
 
     seen: set[str] = set()
-    if not args.all and history.is_dir():
+    if history.is_dir():
         seen = {p.name for p in history.iterdir() if REQ_RE.match(p.name)}
 
     try:
