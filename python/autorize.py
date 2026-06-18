@@ -132,6 +132,7 @@ COLORS = {
     "orange": "\033[38;5;208m",
     "red": "\033[31m",
     "magenta": "\033[35m",
+    "grey": "\033[90m",
 }
 
 
@@ -185,7 +186,7 @@ class Table:
         cells = [f"{name:<{width}}" for name, width in self.COLUMNS]
         line = " | ".join(cells)
         print(line)
-        print("-" * len(line))
+        print(colorize("-" * len(line), "grey"))
         sys.stdout.flush()
 
     STATUS_COLUMNS = {1, 3}
@@ -279,13 +280,12 @@ def highlight_matches(text: str, patterns: list[re.Pattern],
     return "".join(out)
 
 
-def _show(label: str, content: str) -> None:
-    print(label)
-    print("-" * 60)
+def _show(content: str) -> None:
+    print(colorize("-" * 60, "grey"))
     sys.stdout.write(content)
     if not content.endswith("\n"):
         sys.stdout.write("\n")
-    print("-" * 60)
+    print(colorize("-" * 60, "grey"))
 
 
 def test_request(path: Path, filters: list[re.Pattern],
@@ -307,7 +307,7 @@ def test_request(path: Path, filters: list[re.Pattern],
     if filters and not any(f.search(text) for f in filters):
         print(colorize("IGNORED", "red") +
               ": request matches none of the -f filters")
-        _show("request (unchanged):", text)
+        _show(text)
         return 0
 
     # Matches an inverse filter: ignored, with the inverse match highlighted.
@@ -316,16 +316,14 @@ def test_request(path: Path, filters: list[re.Pattern],
         names = ", ".join(repr(f.pattern) for f in matched_inv)
         print(colorize("IGNORED", "red") +
               f": request matches inverse filter(s) {names}")
-        _show("inverse filter matches highlighted:",
-              highlight_matches(text, matched_inv, "red"))
+        _show(highlight_matches(text, matched_inv, "red"))
         return 0
 
     # Passes the filters: show the filter matches, then the changes.
     print(colorize("PASSES", "green") + ": request would be handled")
 
     if filters:
-        _show("filter matches highlighted:",
-              highlight_matches(text, filters, "green"))
+        _show(highlight_matches(text, filters, "green"))
 
     highlighted, count = apply_rules_highlight(data, rules)
     if count == 0:
@@ -333,7 +331,7 @@ def test_request(path: Path, filters: list[re.Pattern],
               ": request would be unchanged (not resent)")
         return 0
 
-    _show(f"{count} substitution(s); changes highlighted:", highlighted)
+    _show(highlighted)
     return 0
 
 

@@ -90,10 +90,10 @@ autorize [-d HISTORY_DIR] [-f FILTER]... [-v FILTER]... [-t REQ_FILE] [-i] match
   -t, --test         test mode: read REQ_FILE and report how it would be
                      handled, without sending requests or writing files:
                        - passes the filters: prints the request with the
-                         filter matches highlighted, then again with the
-                         rule changes highlighted
+                         filter matches in green, then again with the rule
+                         changes in orange
                        - matches an inverse filter: prints the request with
-                         the inverse-filter match highlighted
+                         the inverse-filter match in red
                        - matches no normal filter: prints the request plain
   -i, --ignore-case  make the filter and match regexes case insensitive
 ```
