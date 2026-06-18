@@ -57,11 +57,14 @@ def parse_response(data: bytes) -> tuple[str, int]:
     return status, len(body)
 
 
-def apply_rule(data: bytes, pattern: re.Pattern, repl: str) -> bytes:
-    """Apply the regex match-and-replace to the request bytes."""
+def apply_rule(data: bytes, pattern: re.Pattern, repl: str) -> tuple[bytes, int]:
+    """Apply the regex match-and-replace to the request bytes.
+
+    Returns the (possibly unchanged) bytes and the number of substitutions made.
+    """
     text = data.decode("utf-8", "surrogateescape")
-    text = pattern.sub(repl, text)
-    return text.encode("utf-8", "surrogateescape")
+    text, count = pattern.subn(repl, text)
+    return text.encode("utf-8", "surrogateescape"), count
 
 
 def send_request(req_bytes: bytes) -> tuple[bytes | None, str | None]:
@@ -178,10 +181,23 @@ class Table:
         print(" | ".join(cells))
         sys.stdout.flush()
 
+    def warning(self, req_id: str, message: str) -> None:
+        id_width = self.COLUMNS[0][1]
+        cell = f"{str(req_id):<{id_width}}"
+        print(f"{cell} | {colorize(message, 'yellow')}")
+        sys.stdout.flush()
+
 
 def process(req_path: Path, req_id: str, pattern: re.Pattern, repl: str,
             timeout: float, out_dir: Path, table: Table) -> None:
     req_bytes = read_stable(req_path)
+
+    # Apply the rule. If nothing matched, the request would be unchanged, so
+    # there is no point re-sending it: warn instead.
+    modified, count = apply_rule(req_bytes, pattern, repl)
+    if count == 0:
+        table.warning(req_id, "no-match: request unchanged, not resent")
+        return
 
     # Original response from the response file pwnproxy saved alongside it.
     resp_path = req_path.with_name(req_path.name + ".resp")
@@ -191,7 +207,6 @@ def process(req_path: Path, req_id: str, pattern: re.Pattern, repl: str,
         orig_status, orig_len = "N/A", "N/A"
 
     # Modified response: re-send the request with the rule applied.
-    modified = apply_rule(req_bytes, pattern, repl)
     resp, err = send_request(modified)
     if err is not None:
         mod_status, mod_len = "ERR", err
