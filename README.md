@@ -73,7 +73,7 @@ $ autorize -f '/admin' -f '/api' \
 ### Options
 
 ```
-autorize [-d HISTORY_DIR] [-f FILTER]... [-v FILTER]... [-i] match replace [match replace ...]
+autorize [-d HISTORY_DIR] [-f FILTER]... [-v FILTER]... [-t REQ_FILE] [-i] match replace [match replace ...]
 
   match replace      one or more match/replace pairs (an even number of
                      positional arguments). Each match is a regex and each
@@ -87,6 +87,10 @@ autorize [-d HISTORY_DIR] [-f FILTER]... [-v FILTER]... [-i] match replace [matc
   -v, --invert-filter  inverse filter: a request matching this regex is ignored
                      completely. May be given multiple times (a request is
                      ignored if it matches any inverse filter)
+  -t, --test         test mode: read REQ_FILE, report whether it passes the
+                     filters and print the would-be modified request with
+                     changes highlighted. Sends no requests and writes no
+                     files
   -i, --ignore-case  make the filter and match regexes case insensitive
 ```
 

@@ -156,6 +156,28 @@ def colorize(text: str, color: str) -> str:
         return text
     return f"{COLORS[color]}{text}{RESET}"
 
+REVERSE = "\033[7m"
+
+
+def highlight(text: str) -> str:
+    """Visually mark a replaced span of text."""
+    if not USE_COLOR:
+        return f"[{text}]"
+    return f"{REVERSE}{text}{RESET}"
+
+
+def apply_rules_highlight(data: bytes,
+                          rules: list[tuple[re.Pattern, str]]) -> tuple[str, int]:
+    """Like apply_rules, but return text with each replacement highlighted."""
+    text = data.decode("utf-8", "surrogateescape")
+    total = 0
+    for pattern, repl in rules:
+        def _sub(m, repl=repl):
+            return highlight(m.expand(repl))
+        text, count = pattern.subn(_sub, text)
+        total += count
+    return text, total
+
 
 
 class Table:
@@ -238,6 +260,49 @@ def process(req_path: Path, req_id: str, filters: list[re.Pattern],
     table.row(req_id, orig_status, orig_len, mod_status, mod_len)
 
 
+def test_request(path: Path, filters: list[re.Pattern],
+                 invert_filters: list[re.Pattern],
+                 rules: list[tuple[re.Pattern, str]]) -> int:
+    """Dry-run a single .req file: report filtering and show the diff.
+
+    Sends nothing and writes nothing; purely for testing rules.
+    """
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        sys.stderr.write(f"cannot read {path}: {exc}\n")
+        return 2
+
+    text = data.decode("utf-8", "surrogateescape")
+
+    # Filter checks (same logic as process()).
+    if filters and not any(f.search(text) for f in filters):
+        print(colorize("IGNORED", "red") +
+              ": request matches none of the -f filters")
+        return 0
+    for f in invert_filters:
+        if f.search(text):
+            print(colorize("IGNORED", "red") +
+                  f": request matches inverse filter {f.pattern!r}")
+            return 0
+
+    print(colorize("PASSES", "green") + ": request would be handled")
+
+    highlighted, count = apply_rules_highlight(data, rules)
+    if count == 0:
+        print(colorize("no-match", "yellow") +
+              ": request would be unchanged (not resent)")
+        return 0
+
+    print(f"{count} substitution(s); modified request "
+          "(changes highlighted):")
+    print("-" * 60)
+    sys.stdout.write(highlighted)
+    if not highlighted.endswith("\n"):
+        sys.stdout.write("\n")
+    print("-" * 60)
+    return 0
+
 
 def _env_float(name: str, default: float) -> float:
     val = os.environ.get(name)
@@ -278,6 +343,11 @@ def main() -> int:
                         help="inverse filter: a request matching this regex is "
                              "ignored. May be given multiple times (a request "
                              "is ignored if it matches any inverse filter)")
+    parser.add_argument("-t", "--test", metavar="REQ_FILE", default=None,
+                        help="test mode: read REQ_FILE, report whether it "
+                             "passes the filters and show the would-be "
+                             "modified request (changes highlighted). Sends "
+                             "no requests and writes no files")
     parser.add_argument("-i", "--ignore-case", action="store_true",
                         help="make the filter and match regexes case insensitive")
     args = parser.parse_args()
@@ -315,6 +385,9 @@ def main() -> int:
         except re.error as exc:
             sys.stderr.write(f"invalid match regex {match!r}: {exc}\n")
             return 2
+
+    if args.test is not None:
+        return test_request(Path(args.test), filters, invert_filters, rules)
 
     history = Path(args.history_dir)
     out_dir = history.parent / "autorize"
