@@ -114,6 +114,42 @@ def read_stable(path: Path, settle: float = 0.2, timeout: float = 10.0) -> bytes
     return path.read_bytes()
 
 
+USE_COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+
+RESET = "\033[0m"
+COLORS = {
+    "green": "\033[32m",
+    "cyan": "\033[36m",
+    "yellow": "\033[33m",
+    "red": "\033[31m",
+    "magenta": "\033[35m",
+}
+
+
+def status_color(status: str) -> str:
+    """Pick an ANSI color name for an HTTP status string."""
+    try:
+        code = int(status)
+    except (TypeError, ValueError):
+        return "magenta"  # N/A, ERR, ?, etc.
+    if 200 <= code < 300:
+        return "green"
+    if 300 <= code < 400:
+        return "cyan"
+    if 400 <= code < 500:
+        return "yellow"
+    if 500 <= code < 600:
+        return "red"
+    return "magenta"
+
+
+def colorize(text: str, color: str) -> str:
+    if not USE_COLOR:
+        return text
+    return f"{COLORS[color]}{text}{RESET}"
+
+
+
 class Table:
     COLUMNS = [
         ("ID", 10),
@@ -130,11 +166,15 @@ class Table:
         print("-" * len(line))
         sys.stdout.flush()
 
+    STATUS_COLUMNS = {1, 3}
+
     def row(self, *values) -> None:
-        cells = [
-            f"{str(value):<{width}}"
-            for value, (_, width) in zip(values, self.COLUMNS)
-        ]
+        cells = []
+        for idx, (value, (_, width)) in enumerate(zip(values, self.COLUMNS)):
+            cell = f"{str(value):<{width}}"
+            if idx in self.STATUS_COLUMNS:
+                cell = colorize(cell, status_color(str(value)))
+            cells.append(cell)
         print(" | ".join(cells))
         sys.stdout.flush()
 
